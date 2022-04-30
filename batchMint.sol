@@ -45,10 +45,8 @@ contract contractMint is IERC721Receiver, Ownable {
         return 0x150b7a02;
     }
 
-    function mint(uint256 _val) external payable onlyOwner {
-        (bool success, ) = target.call{value: _val * NFT_PRICE}(
-            abi.encodePacked(bytes4(keccak256("mint(uint256)")), _val)
-        ); // D's storage is set, E is not modified
+    function mint(uint256 _value, bytes memory _optCode) external payable onlyOwner {
+        (bool success, ) = target.call{value: _value}(_optCode); // D's storage is set, E is not modified
         require(success);
     }
 
@@ -90,7 +88,7 @@ contract mintFactory is Ownable {
 
     function createMint(address _t) external payable {
         contractMint mintContract = new contractMint{
-            value: (MAX_PER_WALLET + 1) * NFT_PRICE
+            value: (MAX_PER_WALLET) * NFT_PRICE
         }(_t, MAX_SUPPLY, NFT_PRICE, MAX_PER_WALLET);
         _mint.push(mintContract);
     }
@@ -101,7 +99,7 @@ contract mintFactory is Ownable {
         onlyOwner
     {
         require(
-            msg.value >= (MAX_PER_WALLET + 1) * NFT_PRICE * _num,
+            msg.value >= (MAX_PER_WALLET) * NFT_PRICE * _num,
             "Not enough eth to pay"
         );
         for (uint256 i = 0; i < _num; i++) {
@@ -109,9 +107,9 @@ contract mintFactory is Ownable {
         }
     }
 
-    function batchMintStart() external onlyOwner {
+    function batchMintStart(uint256 _value, bytes memory _optCode) external onlyOwner {
         for (uint256 i = 0; i < _mint.length; i++) {
-            _mint[i].mint(MAX_PER_WALLET);
+            _mint[i].mint(_value, _optCode);
         }
     }
 
