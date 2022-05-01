@@ -18,10 +18,6 @@ contract contractMint is IERC721Receiver, Ownable {
     
     event log(address user, uint256 id);
 
-    constructor() payable {
-    
-    }
-
     function onERC721Received(
         address _operator,
         address _from,
@@ -64,6 +60,9 @@ contract contractMint is IERC721Receiver, Ownable {
         return account.code.length > 0;
     }
 
+    function depositMoney()external payable {
+
+    }
 
     function mint(address target, uint256 value, bytes memory optCode) external payable onlyOwner {
         require(address(this).balance >= value, "Address: insufficient balance for call");
@@ -107,40 +106,95 @@ contract contractMint is IERC721Receiver, Ownable {
 contract mintFactory is Ownable {
     contractMint[] public _mint;
     uint256 public constant MAX_SUPPLY = 10000;
-    uint256 public constant NFT_PRICE = 0.001 ether;
-    uint256 public constant MAX_PER_WALLET = 2;
 
-    function createMint() external payable {
-        contractMint mintContract = new contractMint{
-            value: (MAX_PER_WALLET) * NFT_PRICE
-        }();
+    address public _target;
+    address public _erc721;
+    uint256 public _nft_price;
+    uint256 public _max_per_wallet;
+    //how many wallets number to buy
+    uint256 public _wallets_num;
+
+
+    function createMint() external {
+        contractMint mintContract = new contractMint();
         _mint.push(mintContract);
     }
 
     function createBatchMint(uint256 _num)
         external
-        payable
         onlyOwner
     {
-        require(
-            msg.value >= (MAX_PER_WALLET) * NFT_PRICE * _num,
-            "Not enough eth to pay"
-        );
+       
         for (uint256 i = 0; i < _num; i++) {
             this.createMint();
         }
     }
 
-    function batchMintStart(address target, uint256 value, bytes memory optCode) external onlyOwner {
+    function setTarget(address target, address erc721, uint256 nft_price, uint256 max_per_wallet) 
+        public
+        onlyOwner{
+        _target = target;
+        _erc721 = erc721;
+        _nft_price = nft_price;
+        _max_per_wallet = max_per_wallet;
+    }
+
+    function setWalletsToBuy(uint256 num)
+        public
+        payable
+        onlyOwner
+    {
+        require(_mint.length>=num&&num>0, "not right num!");
+        require(
+            msg.value >= (_max_per_wallet) * _nft_price * num,
+            "Not enough eth to pay"
+        );
+        _wallets_num = num;
+        //pay every walllet
+        for(uint256 i=0; i<num; i++){
+            _mint[i].depositMoney{
+            value: _max_per_wallet * _nft_price
+        }();
+        }
+
+    }
+
+    function setAllDate(address target, address erc721, uint256 nft_price, uint256 max_per_wallet, uint256 num)
+        external
+        payable
+        onlyOwner{
+            setTarget(target, erc721, nft_price, max_per_wallet);
+            setWalletsToBuy(num);
+        }
+
+    function batchMintOpt(address target, uint256 value, bytes memory optCode, uint256 num ) public onlyOwner {
+        require(_mint.length>=num&&num>0, "not right num!");
         for (uint256 i = 0; i < _mint.length; i++) {
             _mint[i].mint(target, value, optCode);
         }
     }
+
+    function batchMintStart(bytes memory optCode) external onlyOwner {
+        batchMintOpt(_target, _nft_price*_max_per_wallet, optCode, _wallets_num);
+    }
+
+
 
     function batchWithdraw(address erc721_address, address recipient) external onlyOwner {
         for (uint256 i = 0; i < _mint.length; i++) {
             _mint[i].withdraw(recipient);
             _mint[i].withdrawNFT(erc721_address, recipient);
         }
+    }
+
+    function batchWithdraw(address recipient) external onlyOwner {
+        for (uint256 i = 0; i < _mint.length; i++) {
+            _mint[i].withdraw(recipient);
+            _mint[i].withdrawNFT(_erc721, recipient);
+        }
+    }
+
+    function getContractNum()external onlyOwner view returns(uint256){
+        return _mint.length;
     }
 }
